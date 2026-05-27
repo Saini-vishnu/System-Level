@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { Op } from 'sequelize';
 import User from '../models/User.js';
 import SystemData from '../models/SystemData.js';
 
@@ -16,37 +17,33 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'ALL FIELDS REQUIRED' });
     }
 
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    const existingUser = await User.findOne({
+      where: {
+        [Op.or]: [{ email }, { username }]
+      }
+    });
+
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'USER EXISTS' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = new User({
-      username,
-      email,
-      password: hashedPassword
-    });
-
-    await user.save();
+    // Create user - let Sequelize hooks handle hashing
+    const user = await User.create({ username, email, password });
 
     // Create default system data
-    const systemData = new SystemData({
-      userId: user._id,
+    const systemData = await SystemData.create({
+      userId: user.id,
       rank: 'E',
       currentExp: 0
     });
 
-    await systemData.save();
-
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
       success: true,
       message: 'REGISTRATION APPROVED',
       token,
-      userId: user._id,
+      userId: user.id,
       username: user.username
     });
   } catch (error) {
@@ -63,12 +60,12 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: 'EMAIL AND PASSWORD REQUIRED' });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({ success: false, message: 'INVALID CREDENTIALS' });
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    const passwordMatch = await user.comparePassword(password);
     if (!passwordMatch) {
       return res.status(401).json({ success: false, message: 'INVALID CREDENTIALS' });
     }
@@ -77,13 +74,13 @@ router.post('/login', async (req, res) => {
     user.lastLogin = new Date();
     await user.save();
 
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
       success: true,
       message: 'LOGIN APPROVED',
       token,
-      userId: user._id,
+      userId: user.id,
       username: user.username
     });
   } catch (error) {

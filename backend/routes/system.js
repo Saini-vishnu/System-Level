@@ -7,7 +7,7 @@ const router = express.Router();
 // Get user's system data
 router.get('/data', verifyToken, async (req, res) => {
   try {
-    const systemData = await SystemData.findOne({ userId: req.userId });
+    const systemData = await SystemData.findOne({ where: { userId: req.userId } });
     
     if (!systemData) {
       return res.status(404).json({ success: false, message: 'DATA NOT FOUND' });
@@ -27,16 +27,15 @@ router.post('/data/sync', verifyToken, async (req, res) => {
   try {
     const { state } = req.body;
 
-    let systemData = await SystemData.findOne({ userId: req.userId });
+    let systemData = await SystemData.findOne({ where: { userId: req.userId } });
 
     if (!systemData) {
-      systemData = new SystemData({ userId: req.userId, ...state });
+      systemData = await SystemData.create({ userId: req.userId, ...state });
     } else {
       // Merge/update the state
       Object.assign(systemData, state);
+      await systemData.save();
     }
-
-    await systemData.save();
 
     res.json({
       success: true,
@@ -53,13 +52,15 @@ router.post('/data/log', verifyToken, async (req, res) => {
   try {
     const { logEntry } = req.body;
 
-    const systemData = await SystemData.findOne({ userId: req.userId });
+    const systemData = await SystemData.findOne({ where: { userId: req.userId } });
 
     if (!systemData) {
       return res.status(404).json({ success: false, message: 'USER DATA NOT FOUND' });
     }
 
-    systemData.logs.push(logEntry);
+    const logs = systemData.logs || [];
+    logs.push(logEntry);
+    systemData.logs = logs;
     await systemData.save();
 
     res.json({
@@ -77,13 +78,15 @@ router.post('/data/violation', verifyToken, async (req, res) => {
   try {
     const { violation } = req.body;
 
-    const systemData = await SystemData.findOne({ userId: req.userId });
+    const systemData = await SystemData.findOne({ where: { userId: req.userId } });
 
     if (!systemData) {
       return res.status(404).json({ success: false, message: 'USER DATA NOT FOUND' });
     }
 
-    systemData.violations.push(violation);
+    const violations = systemData.violations || [];
+    violations.push(violation);
+    systemData.violations = violations;
     await systemData.save();
 
     res.json({
@@ -101,7 +104,7 @@ router.put('/data/target', verifyToken, async (req, res) => {
   try {
     const { dailyTarget } = req.body;
 
-    const systemData = await SystemData.findOne({ userId: req.userId });
+    const systemData = await SystemData.findOne({ where: { userId: req.userId } });
 
     if (!systemData) {
       return res.status(404).json({ success: false, message: 'USER DATA NOT FOUND' });
@@ -123,7 +126,7 @@ router.put('/data/target', verifyToken, async (req, res) => {
 // Get user logs
 router.get('/data/logs', verifyToken, async (req, res) => {
   try {
-    const systemData = await SystemData.findOne({ userId: req.userId });
+    const systemData = await SystemData.findOne({ where: { userId: req.userId } });
 
     if (!systemData) {
       return res.status(404).json({ success: false, message: 'USER DATA NOT FOUND' });
@@ -141,7 +144,7 @@ router.get('/data/logs', verifyToken, async (req, res) => {
 // Get user violations
 router.get('/data/violations', verifyToken, async (req, res) => {
   try {
-    const systemData = await SystemData.findOne({ userId: req.userId });
+    const systemData = await SystemData.findOne({ where: { userId: req.userId } });
 
     if (!systemData) {
       return res.status(404).json({ success: false, message: 'USER DATA NOT FOUND' });
